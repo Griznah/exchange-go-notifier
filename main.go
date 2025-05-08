@@ -106,9 +106,9 @@ func fetchExchangeRates(api *API, baseCurrency string) (*ExchangeRateResponse, e
 	// Construct the URL with proper query parameters
 	var url string
 	if api.Name == "exchangerate-api" {
-		url = fmt.Sprintf("%slatest/%s", api.BaseURL, baseCurrency)
+		url = fmt.Sprintf("%s/latest/%s", api.BaseURL, baseCurrency)
 	} else if api.Name == "openexchangerates" {
-		url = fmt.Sprintf("%slatest.json?app_id=%s&base=%s", api.BaseURL, os.Getenv("OPENEXCHANGERATES_APP_ID"), baseCurrency)
+		url = fmt.Sprintf("%s/latest.json?app_id=%s&base=%s", api.BaseURL, os.Getenv("OPENEXCHANGERATES_APP_ID"), baseCurrency)
 	}
 
 	fmt.Printf("Outgoing API call: %s\n", url)
