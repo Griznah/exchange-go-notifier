@@ -103,14 +103,15 @@ func fetchExchangeRates(api *API, baseCurrency string) (*ExchangeRateResponse, e
 	}
 	mu.Unlock()
 
-	// Construct the URL with authentication and base currency
+	// Construct the URL with proper query parameters
 	var url string
 	if api.Name == "exchangerate-api" {
-		url = fmt.Sprintf("%s%s/latest/%s", api.BaseURL, "YOUR-API-KEY", baseCurrency)
+		url = fmt.Sprintf("%slatest/%s", api.BaseURL, baseCurrency)
 	} else if api.Name == "openexchangerates" {
-		url = fmt.Sprintf("%s/latest.json?app_id=YOUR_APP_ID&base=%s", api.BaseURL, baseCurrency)
+		url = fmt.Sprintf("%slatest.json?app_id=%s&base=%s", api.BaseURL, os.Getenv("OPENEXCHANGERATES_APP_ID"), baseCurrency)
 	}
 
+	fmt.Printf("Outgoing API call: %s\n", url)
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch exchange rates: %v", err)
@@ -126,10 +127,14 @@ func fetchExchangeRates(api *API, baseCurrency string) (*ExchangeRateResponse, e
 		return nil, fmt.Errorf("failed to decode response: %v", err)
 	}
 
+	fmt.Printf("API response: %v\n", rates)
 	return &rates, nil
 }
 
+// Add logging for incoming requests
 func exchangeRateHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("Incoming request: %s %s\n", r.Method, r.URL.String())
+	
 	apiName := r.URL.Query().Get("api")
 	baseCurrency := r.URL.Query().Get("base")
 	if apiName == "" || baseCurrency == "" {
@@ -156,6 +161,7 @@ func exchangeRateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Printf("Outgoing response: %v\n", rates)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(rates)
 }

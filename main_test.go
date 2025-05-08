@@ -1,22 +1,30 @@
 package main
 
 import (
+	"log"
 	"os"
 	"testing"
+
+	"github.com/joho/godotenv"
 )
 
 func TestLoadAPIKeys(t *testing.T) {
-	os.Setenv("EXCHANGERATE_API_KEY", "test_key_exchangerate")
-	os.Setenv("OPENEXCHANGERATES_APP_ID", "test_key_openexchangerates")
+	// Load environment variables from .env file
+	if err := godotenv.Load(".env"); err != nil {
+		log.Fatalf("Error loading .env file: %v", err)
+	}
+
+	exchangerateAPIKey := os.Getenv("EXCHANGERATE_API_KEY")
+	openexchangeratesAppID := os.Getenv("OPENEXCHANGERATES_APP_ID")
 
 	loadAPIKeys()
 
 	for _, api := range APIs {
-		if api.Name == "exchangerate-api" && !contains(api.BaseURL, "test_key_exchangerate") {
+		if api.Name == "exchangerate-api" && !contains(api.BaseURL, exchangerateAPIKey) {
 			t.Errorf("Expected API key for exchangerate-api not found in BaseURL")
 		}
-		if api.Name == "openexchangerates" && !contains(api.BaseURL, "test_key_openexchangerates") {
-			t.Errorf("Expected API key for openexchangerates not found in BaseURL")
+		if api.Name == "openexchangerates" && !contains(api.BaseURL, openexchangeratesAppID) {
+			t.Errorf("Expected APP ID for openexchangerates not found in BaseURL")
 		}
 	}
 }
