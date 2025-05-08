@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 )
@@ -24,21 +25,60 @@ type ExchangeRateResponse struct {
 var APIs = []API{
 	{
 		Name:          "exchangerate-api",
-		BaseURL:       "https://v6.exchangerate-api.com/v6/APIKEY/latest/CURRENCY",
-		RequestLimit:  1000,
-		ResetInterval: 24 * time.Hour,
+		BaseURL:       "https://v6.exchangerate-api.com/v6/",
+		RequestLimit:  1500, // max 1500 requests per month
+		ResetInterval: 30 * 24 * time.Hour, // monthly reset
 		LastReset:     time.Now(),
 	},
 	{
-		Name:          "API2",
-		BaseURL:       "https://api2.example.com/rates",
-		RequestLimit:  500,
-		ResetInterval: 24 * time.Hour,
+		Name:          "openexchangerates",
+		BaseURL:       "https://openexchangerates.org/api/",
+		RequestLimit:  1000, // max 1000 requests per month
+		ResetInterval: 30 * 24 * time.Hour, // monthly reset
 		LastReset:     time.Now(),
 	},
 }
 
 var mu sync.Mutex
+
+// Load API keys from environment variables
+func loadAPIKeys() {
+	for i := range APIs {
+		if APIs[i].Name == "exchangerate-api" {
+			APIs[i].BaseURL += os.Getenv("EXCHANGERATE_API_KEY")
+		} else if APIs[i].Name == "openexchangerates" {
+			APIs[i].BaseURL += os.Getenv("OPENEXCHANGERATES_APP_ID")
+		}
+	}
+}
+
+// Save API state to a file
+func saveAPIState() error {
+	file, err := os.Create("api_state.json")
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	return json.NewEncoder(file).Encode(APIs)
+}
+
+// Load API state from a file
+func loadAPIState() error {
+	file, err := os.Open("api_state.json")
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	return json.NewDecoder(file).Decode(&APIs)
+}
 
 func trackRequest(api *API) error {
 	if time.Since(api.LastReset) > api.ResetInterval {
@@ -63,7 +103,14 @@ func fetchExchangeRates(api *API, baseCurrency string) (*ExchangeRateResponse, e
 	}
 	mu.Unlock()
 
-	url := fmt.Sprintf("%s?base=%s", api.BaseURL, baseCurrency)
+	// Construct the URL with authentication and base currency
+	var url string
+	if api.Name == "exchangerate-api" {
+		url = fmt.Sprintf("%s%s/latest/%s", api.BaseURL, "YOUR-API-KEY", baseCurrency)
+	} else if api.Name == "openexchangerates" {
+		url = fmt.Sprintf("%s/latest.json?app_id=YOUR_APP_ID&base=%s", api.BaseURL, baseCurrency)
+	}
+
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch exchange rates: %v", err)
@@ -119,7 +166,16 @@ func main() {
 		fmt.Printf("- %s (Base URL: %s, Limit: %d requests per %v)\n", api.Name, api.BaseURL, api.RequestLimit, api.ResetInterval)
 	}
 
+	loadAPIKeys()
+	if err := loadAPIState(); err != nil {
+		fmt.Println("Failed to load API state:", err)
+	}
+
 	http.HandleFunc("/exchange-rates", exchangeRateHandler)
 	fmt.Println("Server is running on port 8080")
 	http.ListenAndServe(":8080", nil)
+
+	if err := saveAPIState(); err != nil {
+		fmt.Println("Failed to save API state:", err)
+	}
 }
