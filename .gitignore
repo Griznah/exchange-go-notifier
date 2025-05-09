@@ -26,4 +26,4 @@ go.work.sum
 *.env
 
 # State file
-api_state.json
+api_state*.json

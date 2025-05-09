@@ -5,10 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"sync"
-
-	//"os/signal"
-	//"syscall"
 	"time"
 )
 
@@ -43,8 +39,6 @@ var APIs = []API{
 	},
 }
 
-var mu sync.Mutex
-
 // Modify the loadAPIKeys function to store API keys separately
 func loadAPIKeys() {
 	for i := range APIs {
@@ -54,43 +48,6 @@ func loadAPIKeys() {
 			APIs[i].APIKey = os.Getenv("OPENEXCHANGERATES_APP_ID")
 		}
 	}
-}
-
-// Save API state to a file
-func saveAPIState() error {
-	tempFile, err := os.CreateTemp("", "api_state_*.json")
-	if err != nil {
-		return fmt.Errorf("failed to create temporary file: %v", err)
-	}
-	defer tempFile.Close()
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	if err := json.NewEncoder(tempFile).Encode(APIs); err != nil {
-		return fmt.Errorf("failed to encode API state: %v", err)
-	}
-
-	// Rename the temporary file to the actual file
-	if err := os.Rename(tempFile.Name(), "api_state.json"); err != nil {
-		return fmt.Errorf("failed to rename temporary file: %v", err)
-	}
-
-	return nil
-}
-
-// Load API state from a file
-func loadAPIState() error {
-	file, err := os.Open("api_state.json")
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	return json.NewDecoder(file).Decode(&APIs)
 }
 
 // Update the trackRequest function to handle request limit correctly
@@ -108,22 +65,16 @@ func trackRequest(api *API) error {
 	}
 
 	api.RequestCount++
-	if err := saveAPIState(); err != nil {
-		return fmt.Errorf("failed to save API state: %v", err)
-	}
 
 	return nil
 }
 
-// Update the fetchExchangeRates function to save state only on successful calls
+// Update the fetchExchangeRates function
 func fetchExchangeRates(api *API, baseCurrency string) (*ExchangeRateResponse, error) {
-	mu.Lock()
 	err := trackRequest(api)
 	if err != nil {
-		mu.Unlock()
 		return nil, err
 	}
-	mu.Unlock()
 
 	// Construct the URL with proper query parameters
 	var url string
@@ -142,11 +93,6 @@ func fetchExchangeRates(api *API, baseCurrency string) (*ExchangeRateResponse, e
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("API %s returned status %d", api.Name, resp.StatusCode)
-	}
-
-	// Save state only on successful response
-	if err := saveAPIState(); err != nil {
-		return nil, fmt.Errorf("failed to save API state: %v", err)
 	}
 
 	var rates ExchangeRateResponse
@@ -211,41 +157,10 @@ func main() {
 	}
 
 	loadAPIKeys()
-	if err := loadAPIState(); err != nil {
-		fmt.Println("Failed to load API state:", err)
-	}
-
-	// Add a function to periodically save API state
-	go func() {
-		ticker := time.NewTicker(1 * time.Minute)
-		defer ticker.Stop()
-
-		for range ticker.C {
-			if err := saveAPIState(); err != nil {
-				fmt.Printf("Failed to save API state: %v\n", err)
-			}
-		}
-	}()
-
-	// Ensure API state is saved on application exit
-	/* 	c := make(chan os.Signal, 1)
-	   	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	   	go func() {
-	   		<-c
-	   		fmt.Println("Saving API state before exit...")
-	   		if err := saveAPIState(); err != nil {
-	   			fmt.Printf("Failed to save API state on exit: %v\n", err)
-	   		}
-	   		os.Exit(0)
-	   	}() */
 
 	http.HandleFunc("/exchange-rates", exchangeRateHandler)
 	fmt.Println("Server is running on port 8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		fmt.Printf("Server failed: %v\n", err)
-	}
-
-	if err := saveAPIState(); err != nil {
-		fmt.Println("Failed to save API state:", err)
 	}
 }
