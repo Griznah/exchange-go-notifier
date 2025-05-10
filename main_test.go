@@ -13,16 +13,18 @@ func TestLoadAPIKeys(t *testing.T) {
 	defer os.Unsetenv("EXCHANGERATE_API_KEY")
 	defer os.Unsetenv("OPENEXCHANGERATES_APP_ID")
 
-	// Call the function to load API keys
+	// Use new API names
+	APIs[0].Name = "er-a"
+	APIs[1].Name = "oer"
 	loadAPIKeys()
 
 	// Verify that the API keys are correctly loaded
 	for _, api := range APIs {
-		if api.Name == "exchangerate-api" && api.APIKey != "test_exchangerate_api_key" {
-			t.Errorf("Expected API key for exchangerate-api to be 'test_exchangerate_api_key', got '%s'", api.APIKey)
+		if api.Name == "er-a" && api.APIKey != "test_exchangerate_api_key" {
+			t.Errorf("Expected API key for er-a to be 'test_exchangerate_api_key', got '%s'", api.APIKey)
 		}
-		if api.Name == "openexchangerates" && api.APIKey != "test_openexchangerates_app_id" {
-			t.Errorf("Expected API key for openexchangerates to be 'test_openexchangerates_app_id', got '%s'", api.APIKey)
+		if api.Name == "oer" && api.APIKey != "test_openexchangerates_app_id" {
+			t.Errorf("Expected API key for oer to be 'test_openexchangerates_app_id', got '%s'", api.APIKey)
 		}
 	}
 }
@@ -38,8 +40,8 @@ func TestAPIsInitialization(t *testing.T) {
 		expectedBase  string
 		expectedLimit int
 	}{
-		{"exchangerate-api", "https://v6.exchangerate-api.com/v6/", 1500},
-		{"openexchangerates", "https://openexchangerates.org/api/", 1000},
+		{"er-a", "https://v6.exchangerate-api.com/v6/", 1500},
+		{"oer", "https://openexchangerates.org/api/", 1000},
 	}
 
 	for _, test := range tests {
@@ -62,4 +64,51 @@ func TestAPIsInitialization(t *testing.T) {
 			t.Errorf("API %s not found in APIs list", test.name)
 		}
 	}
+}
+
+func TestTrackRequestAndStatePersistence(t *testing.T) {
+	api := &API{
+		Name:         "testapi",
+		RequestLimit: 2,
+		LastReset:    time.Now().Add(-31 * 24 * time.Hour), // force reset
+	}
+	APIs = append(APIs, *api)
+	// Should reset and allow request
+	if err := trackRequest(api); err != nil {
+		t.Errorf("Expected no error on first request after reset, got %v", err)
+	}
+	// Simulate increment and save
+	api.RequestCount++
+	saveAPIState()
+	// Should allow one more
+	if err := trackRequest(api); err != nil {
+		t.Errorf("Expected no error on second request, got %v", err)
+	}
+	api.RequestCount++
+	saveAPIState()
+	// Should block further requests
+	if err := trackRequest(api); err == nil {
+		t.Errorf("Expected error after exceeding limit, got nil")
+	}
+	// Clean up
+	APIs = APIs[:len(APIs)-1]
+}
+
+func TestSaveAndLoadAPIState(t *testing.T) {
+	api := &API{
+		Name:         "persistapi",
+		RequestLimit: 10,
+		RequestCount: 5,
+		LastReset:    time.Now(),
+	}
+	APIs = append(APIs, *api)
+	saveAPIState()
+	// Zero out and reload
+	APIs[len(APIs)-1].RequestCount = 0
+	loadAPIState()
+	if APIs[len(APIs)-1].RequestCount != 5 {
+		t.Errorf("Expected RequestCount to be 5 after reload, got %d", APIs[len(APIs)-1].RequestCount)
+	}
+	// Clean up
+	APIs = APIs[:len(APIs)-1]
 }
