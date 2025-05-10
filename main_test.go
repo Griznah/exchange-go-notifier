@@ -13,9 +13,11 @@ func TestLoadAPIKeys(t *testing.T) {
 	defer os.Unsetenv("EXCHANGERATE_API_KEY")
 	defer os.Unsetenv("OPENEXCHANGERATES_APP_ID")
 
-	// Use new API names
-	APIs[0].Name = "er-a"
-	APIs[1].Name = "oer"
+	// Create a local copy for testing
+	testAPIs := make([]API, len(APIs))
+	copy(testAPIs, APIs)
+	testAPIs[0].Name = "er-a"
+	testAPIs[1].Name = "oer"
 	loadAPIKeys()
 
 	// Verify that the API keys are correctly loaded
