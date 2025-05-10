@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  exchange-go-notifier:
+    build: .
+    image: exchange-go-notifier:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - EXCHANGERATE_API_KEY=${EXCHANGERATE_API_KEY}
+      - OPENEXCHANGERATES_APP_ID=${OPENEXCHANGERATES_APP_ID}
+    volumes:
+      - ./api_state.json:/app/api_state.json
+    restart: unless-stopped
