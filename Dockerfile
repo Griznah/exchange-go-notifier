@@ -13,7 +13,6 @@ WORKDIR /app
 # Create a non-root user and group
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 COPY --from=build /app/exchange-go-notifier ./
-COPY --from=build /app/api_state.json ./
 RUN chown -R appuser:appgroup /app
 USER appuser
 EXPOSE 8080

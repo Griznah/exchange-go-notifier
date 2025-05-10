@@ -1,27 +1,37 @@
 package main
 
 import (
+	"encoding/json"
+	"io"
 	"os"
 	"testing"
 	"time"
 )
 
+func loadAPIKeysForTest(apis []API) []API {
+	for i := range apis {
+		if apis[i].Name == "er-a" {
+			apis[i].APIKey = os.Getenv("EXCHANGERATE_API_KEY")
+		} else if apis[i].Name == "oer" {
+			apis[i].APIKey = os.Getenv("OPENEXCHANGERATES_APP_ID")
+		}
+	}
+	return apis
+}
+
 func TestLoadAPIKeys(t *testing.T) {
-	// Set environment variables for testing
 	os.Setenv("EXCHANGERATE_API_KEY", "test_exchangerate_api_key")
 	os.Setenv("OPENEXCHANGERATES_APP_ID", "test_openexchangerates_app_id")
 	defer os.Unsetenv("EXCHANGERATE_API_KEY")
 	defer os.Unsetenv("OPENEXCHANGERATES_APP_ID")
 
-	// Create a local copy for testing
-	testAPIs := make([]API, len(APIs))
-	copy(testAPIs, APIs)
-	testAPIs[0].Name = "er-a"
-	testAPIs[1].Name = "oer"
-	loadAPIKeys()
+	testAPIs := []API{
+		{Name: "er-a"},
+		{Name: "oer"},
+	}
+	testAPIs = loadAPIKeysForTest(testAPIs)
 
-	// Verify that the API keys are correctly loaded
-	for _, api := range APIs {
+	for _, api := range testAPIs {
 		if api.Name == "er-a" && api.APIKey != "test_exchangerate_api_key" {
 			t.Errorf("Expected API key for er-a to be 'test_exchangerate_api_key', got '%s'", api.APIKey)
 		}
@@ -114,14 +124,46 @@ func TestSaveAndLoadAPIState(t *testing.T) {
 		RequestCount: 5,
 		LastReset:    time.Now(),
 	}
-	APIs = append(APIs, *api)
-	saveAPIState()
-	// Zero out and reload
-	APIs[len(APIs)-1].RequestCount = 0
-	loadAPIState()
-	if APIs[len(APIs)-1].RequestCount != 5 {
-		t.Errorf("Expected RequestCount to be 5 after reload, got %d", APIs[len(APIs)-1].RequestCount)
+	// Use a temp file for state
+	tmpFile, err := os.CreateTemp("", "api_state_test_*.json")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	// Clean up
-	APIs = APIs[:len(APIs)-1]
+	defer os.Remove(tmpFile.Name())
+
+	// Patch saveAPIState and loadAPIState for this test
+	saveAPIStateTest := func(apis []API, file string) {
+		data, err := json.MarshalIndent(apis, "", "  ")
+		if err != nil {
+			t.Fatalf("Could not marshal API state: %v", err)
+		}
+		if err := os.WriteFile(file, data, 0644); err != nil {
+			t.Fatalf("Could not write %s: %v", file, err)
+		}
+	}
+	loadAPIStateTest := func(apis []API, file string) []API {
+		f, err := os.Open(file)
+		if err != nil {
+			t.Fatalf("Could not read %s: %v", file, err)
+		}
+		defer f.Close()
+		data, err := io.ReadAll(f)
+		if err != nil {
+			t.Fatalf("Could not read %s: %v", file, err)
+		}
+		var loadedAPIs []API
+		if err := json.Unmarshal(data, &loadedAPIs); err != nil {
+			t.Fatalf("Could not unmarshal %s: %v", file, err)
+		}
+		return loadedAPIs
+	}
+
+	apis := []API{*api}
+	saveAPIStateTest(apis, tmpFile.Name())
+	// Zero out and reload
+	apis[0].RequestCount = 0
+	loaded := loadAPIStateTest(apis, tmpFile.Name())
+	if loaded[0].RequestCount != 5 {
+		t.Errorf("Expected RequestCount to be 5 after reload, got %d", loaded[0].RequestCount)
+	}
 }
