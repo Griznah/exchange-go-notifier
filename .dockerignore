@@ -7,10 +7,6 @@
 *.exe
 *.test
 
-# Ignore Go cache and mod cache
-go.sum
-go.mod
-
 # Ignore editor/project files
 .vscode/
 .idea/
