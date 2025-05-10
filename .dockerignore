@@ -1,0 +1,20 @@
+# Ignore version control
+.git
+
+# Ignore build output
+/build
+*.out
+*.exe
+*.test
+
+# Ignore Go cache and mod cache
+go.sum
+go.mod
+
+# Ignore editor/project files
+.vscode/
+.idea/
+*.swp
+
+# Ignore state files (should be mounted at runtime)
+api_state.json

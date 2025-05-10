@@ -69,31 +69,42 @@ func TestAPIsInitialization(t *testing.T) {
 }
 
 func TestTrackRequestAndStatePersistence(t *testing.T) {
-	api := &API{
+	// Create a test-specific API slice
+	testAPI := API{
 		Name:         "testapi",
 		RequestLimit: 2,
 		LastReset:    time.Now().Add(-31 * 24 * time.Hour), // force reset
 	}
-	APIs = append(APIs, *api)
+	// Save original and create test slice
+	originalAPIs := APIs
+	testAPIs := append([]API{}, testAPI)
+	APIs = testAPIs
+	// Ensure cleanup after test
+	defer func() {
+		APIs = originalAPIs
+	}()
+	api := &APIs[0]
+
 	// Should reset and allow request
 	if err := trackRequest(api); err != nil {
 		t.Errorf("Expected no error on first request after reset, got %v", err)
 	}
-	// Simulate increment and save
-	api.RequestCount++
-	saveAPIState()
+	api.RequestCount++ // Simulate increment after success
+
 	// Should allow one more
 	if err := trackRequest(api); err != nil {
 		t.Errorf("Expected no error on second request, got %v", err)
 	}
-	api.RequestCount++
-	saveAPIState()
+	api.RequestCount++ // Simulate increment after success
+
 	// Should block further requests
 	if err := trackRequest(api); err == nil {
 		t.Errorf("Expected error after exceeding limit, got nil")
 	}
-	// Clean up
-	APIs = APIs[:len(APIs)-1]
+	// One more call to ensure error is returned after limit is reached
+	if err := trackRequest(api); err == nil {
+		t.Errorf("Expected error after exceeding limit (second check), got nil")
+	}
 }
 
 func TestSaveAndLoadAPIState(t *testing.T) {
