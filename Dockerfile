@@ -4,9 +4,10 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -o exchange-go-notifier main.go
+ENV CGO_ENABLED=0 GOOS=linux
+RUN go build -ldflags="-s -w" -o exchange-go-notifier main.go
 
-FROM alpine:latest
+FROM alpine:3.21
 WORKDIR /app
 # Create a non-root user and group
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
@@ -17,3 +18,6 @@ USER appuser
 EXPOSE 8080
 ENV PORT=8080
 CMD ["./exchange-go-notifier"]
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s \
+   CMD wget --quiet --tries=1 --spider http://localhost:${PORT}/health || exit 1

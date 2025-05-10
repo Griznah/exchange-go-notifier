@@ -9,5 +9,5 @@ services:
       - EXCHANGERATE_API_KEY=${EXCHANGERATE_API_KEY}
       - OPENEXCHANGERATES_APP_ID=${OPENEXCHANGERATES_APP_ID}
     volumes:
-      - ./api_state.json:/app/api_state.json
+      - ./api_state.json:/app/api_state.json # Ensure this file exists! (see README)
     restart: unless-stopped
