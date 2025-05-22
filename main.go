@@ -8,6 +8,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 type API struct {
@@ -136,7 +138,7 @@ func fetchExchangeRates(api *API, baseCurrency string) (*ExchangeRateResponse, e
 	if api.Name == "er-a" {
 		url = fmt.Sprintf("%s%s/latest/%s", api.BaseURL, api.APIKey, baseCurrency)
 	} else if api.Name == "oer" {
-		url = fmt.Sprintf("%slatest.json?app_id=%s", api.BaseURL, api.APIKey)
+		url = fmt.Sprintf("%slatest.json?app_id=%s&base=%s", api.BaseURL, api.APIKey, baseCurrency)
 	}
 
 	fmt.Printf("Outgoing API call: %s\n", url)
@@ -187,10 +189,13 @@ func exchangeRateHandler(w http.ResponseWriter, r *http.Request) {
 
 	apiName := r.URL.Query().Get("api")
 	baseCurrency := r.URL.Query().Get("base")
-	if apiName == "" || baseCurrency == "" {
-		http.Error(w, "Missing 'api' or 'base' query parameter", http.StatusBadRequest)
-		fmt.Printf("[DEBUG] Missing 'api' or 'base' query parameter\n")
+	if apiName == "" {
+		http.Error(w, "Missing 'api' query parameter", http.StatusBadRequest)
+		fmt.Printf("[DEBUG] Missing 'api' query parameter\n")
 		return
+	}
+	if baseCurrency == "" {
+		baseCurrency = "USD"
 	}
 
 	var selectedAPI *API
@@ -222,7 +227,15 @@ func exchangeRateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func ensureEnvVars() {
+	// Try to load .env file if required env vars are missing
+	if os.Getenv("EXCHANGERATE_API_KEY") == "" || os.Getenv("OPENEXCHANGERATES_APP_ID") == "" {
+		_ = godotenv.Load(".env")
+	}
+}
+
 func main() {
+	ensureEnvVars()
 	fmt.Println("Available APIs:")
 	for _, api := range APIs {
 		fmt.Printf("- %s (Base URL: %s, Limit: %d requests per %v)\n", api.Name, api.BaseURL, api.RequestLimit, api.ResetInterval)

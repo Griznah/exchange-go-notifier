@@ -61,7 +61,6 @@ GET /exchange-rates?api={provider}&base={currency}
 #### Parameters
 
 - `provider` (required): The API provider to use (`er-a` or `oer`)
-- `base` (required): Base currency code (e.g., USD, EUR, GBP)
 
 #### Example Requests
 

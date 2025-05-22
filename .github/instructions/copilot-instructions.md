@@ -2,7 +2,9 @@
 
 # What this is
 
-This project is a Go application for checking exchange rates with selectable APIs, built with Vecty for the web front-end. It supports OAuth 2.0 login for GitHub, Google, and Apple accounts. Start by implementing predefined APIs for exchange rate lookups and tracking request counts to avoid exceeding free tier limits.
+This project is a Go application for checking exchange rates with multiple backend APIs.
+It supports OAuth 2.0 login for GitHub, Google, and Apple accounts.
+Implementing predefined APIs for exchange rate lookups and tracking request counts to avoid exceeding free tier limits.
 
 # File Naming Convention
 
