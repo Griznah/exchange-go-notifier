@@ -141,7 +141,6 @@ func fetchExchangeRates(api *API, baseCurrency string) (*ExchangeRateResponse, e
 		url = fmt.Sprintf("%slatest.json?app_id=%s&base=%s", api.BaseURL, api.APIKey, baseCurrency)
 	}
 
-	fmt.Printf("Outgoing API call: %s\n", url)
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(url)
 	if err != nil {
@@ -150,6 +149,9 @@ func fetchExchangeRates(api *API, baseCurrency string) (*ExchangeRateResponse, e
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == 403 {
+		return nil, fmt.Errorf("API %s has exceeded its request limit", api.Name)
+	}
 	if resp.StatusCode != http.StatusOK {
 		fmt.Printf("[DEBUG] API %s returned status %d\n", api.Name, resp.StatusCode)
 		return nil, fmt.Errorf("API %s returned status %d", api.Name, resp.StatusCode)
@@ -183,6 +185,29 @@ func fetchExchangeRates(api *API, baseCurrency string) (*ExchangeRateResponse, e
 	return &rates, nil
 }
 
+// Helper to validate API provider
+func isValidAPI(api string) bool {
+	for _, a := range APIs {
+		if a.Name == api {
+			return true
+		}
+	}
+	return false
+}
+
+// Helper to validate currency code (3 uppercase letters)
+func isValidCurrencyCode(code string) bool {
+	if len(code) != 3 {
+		return false
+	}
+	for _, c := range code {
+		if c < 'A' || c > 'Z' {
+			return false
+		}
+	}
+	return true
+}
+
 // Add logging for incoming requests
 func exchangeRateHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("Incoming request: %s %s\n", r.Method, r.URL.String())
@@ -194,8 +219,18 @@ func exchangeRateHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("[DEBUG] Missing 'api' query parameter\n")
 		return
 	}
+	if !isValidAPI(apiName) {
+		http.Error(w, "Invalid 'api' parameter", http.StatusBadRequest)
+		fmt.Printf("[DEBUG] Invalid 'api' parameter: %s\n", apiName)
+		return
+	}
 	if baseCurrency == "" {
 		baseCurrency = "USD"
+	}
+	if !isValidCurrencyCode(baseCurrency) {
+		http.Error(w, "Invalid 'base' parameter", http.StatusBadRequest)
+		fmt.Printf("[DEBUG] Invalid 'base' parameter: %s\n", baseCurrency)
+		return
 	}
 
 	var selectedAPI *API

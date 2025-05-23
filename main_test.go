@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -166,4 +168,74 @@ func TestSaveAndLoadAPIState(t *testing.T) {
 	if loaded[0].RequestCount != 5 {
 		t.Errorf("Expected RequestCount to be 5 after reload, got %d", loaded[0].RequestCount)
 	}
+}
+
+// --- Input validation tests ---
+func TestIsValidAPI(t *testing.T) {
+	if !isValidAPI("er-a") {
+		t.Errorf("'er-a' should be a valid API")
+	}
+	if !isValidAPI("oer") {
+		t.Errorf("'oer' should be a valid API")
+	}
+	if isValidAPI("invalid") {
+		t.Errorf("'invalid' should not be a valid API")
+	}
+}
+
+func TestIsValidCurrencyCode(t *testing.T) {
+	valid := []string{"USD", "EUR", "JPY"}
+	invalid := []string{"usd", "US", "USDE", "12A", "Eur", "", "123", "US$"}
+	for _, code := range valid {
+		if !isValidCurrencyCode(code) {
+			t.Errorf("'%s' should be valid currency code", code)
+		}
+	}
+	for _, code := range invalid {
+		if isValidCurrencyCode(code) {
+			t.Errorf("'%s' should be invalid currency code", code)
+		}
+	}
+}
+
+// --- HTTP handler validation tests ---
+func TestExchangeRateHandler_InputValidation(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(exchangeRateHandler))
+	defer ts.Close()
+
+	cases := []struct {
+		name       string
+		query      string
+		wantStatus int
+		wantBody   string
+	}{
+		{"missing api", "", 400, "Missing 'api' query parameter"},
+		{"invalid api", "api=invalid", 400, "Invalid 'api' parameter"},
+		{"invalid base", "api=er-a&base=usd", 400, "Invalid 'base' parameter"},
+		{"invalid base 2", "api=er-a&base=USDE", 400, "Invalid 'base' parameter"},
+		{"valid api and base", "api=er-a&base=USD", 500, "API er-a has exceeded its request limit"}, // Will fail at fetch, but validation passes
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, err := http.Get(ts.URL + "/exchange-rates?" + tc.query)
+			if err != nil {
+				t.Fatalf("http.Get failed: %v", err)
+			}
+			defer resp.Body.Close()
+			body, _ := io.ReadAll(resp.Body)
+			if resp.StatusCode != tc.wantStatus {
+				t.Errorf("Expected status %d, got %d", tc.wantStatus, resp.StatusCode)
+			}
+			if tc.wantBody != "" && string(body) == "" {
+				t.Errorf("Expected body to contain '%s', got empty", tc.wantBody)
+			}
+			if tc.wantBody != "" && !contains(string(body), tc.wantBody) {
+				t.Errorf("Expected body to contain '%s', got '%s'", tc.wantBody, string(body))
+			}
+		})
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(substr) == 0 || (len(s) > 0 && (s == substr || (len(s) > len(substr) && (contains(s[1:], substr) || contains(s[:len(s)-1], substr))))) || (len(s) >= len(substr) && s[:len(substr)] == substr)
 }

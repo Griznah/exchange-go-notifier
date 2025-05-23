@@ -10,6 +10,7 @@ This project is written entirely in Go. Code suggestions must follow idiomatic G
 - Avoid excessive abstraction, interfaces, or overengineering.
 - Write **idiomatic error handling** (explicit errors, no panics).
 - Write code that is compatible with **Go modules** and supports `go test` and `go build`.
+- Always comment each function and package with a clear purpose.
 
 ## 🧪 Testing Instructions
 
