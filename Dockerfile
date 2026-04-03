@@ -7,7 +7,7 @@ COPY . .
 ENV CGO_ENABLED=0 GOOS=linux
 RUN go build -ldflags="-s -w" -o exchange-go-notifier main.go
 
-FROM alpine:3.21
+FROM alpine:3.23
 RUN apk add --no-cache wget
 WORKDIR /app
 # Create a non-root user and group
