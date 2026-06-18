@@ -25,5 +25,6 @@ go.work.sum
 .env
 *.env
 
-# State file
+# State file + container data dir (api_state.json embeds the API keys at runtime)
 api_state.json
+data/

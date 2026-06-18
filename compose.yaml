@@ -1,0 +1,19 @@
+# Compose file for use with `podman-compose` (or `podman compose` + a provider).
+# Copy .env.example to .env and fill in your API keys first.
+services:
+  exchange-go-notifier:
+    build: .
+    image: localhost/exchange-go-notifier:dev
+    ports:
+      - "8080:8080"
+    environment:
+      - EXCHANGERATE_API_KEY=${EXCHANGERATE_API_KEY}
+      - OPENEXCHANGERATES_APP_ID=${OPENEXCHANGERATES_APP_ID}
+      - API_STATE_FILE=/data/api_state.json
+    volumes:
+      - ./data:/data
+    # Run as your host UID/GID so the state file is owned by you (not a subuid).
+    # Defaults to 1000:1000; set your UID:GID explicitly here if it differs.
+    userns_mode: "keep-id"
+    user: "${UID:-1000}:${GID:-1000}"
+    restart: unless-stopped

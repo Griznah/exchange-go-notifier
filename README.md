@@ -7,18 +7,22 @@ An app with selectable API's for checking exchange rates and optional automatic 
 - Multiple exchange rate API support (ExchangeRate-API, Open Exchange Rates)
 - Rate limiting and request tracking
 - Simple HTTP API
-- Containerized with Docker
+- Containerized with Podman (rootless, no daemon)
 - State persistence between restarts
 
 ## Prerequisites
 
 - Go 1.16+
-- Docker and Docker Compose (optional)
+- Podman, optionally with `podman-compose` (see [PODMAN_USAGE.md](PODMAN_USAGE.md))
 - API keys for the desired exchange rate providers
 
 ## Environment Variables
 
-Create a `.env` file in the project root with the following variables:
+Copy `.env.example` to `.env` and fill in your keys:
+
+```sh
+cp .env.example .env
+```
 
 ```env
 # ExchangeRate-API (er-a) - Get your key from https://www.exchangerate-api.com/
@@ -26,27 +30,34 @@ EXCHANGERATE_API_KEY=your_api_key_here
 
 # Open Exchange Rates (oer) - Get your key from https://openexchangerates.org/
 OPENEXCHANGERATES_APP_ID=your_app_id_here
+
+# State file path inside the container (with the ./data:/data mount).
+# Optional for local `go run .`; defaults to api_state.json in the working dir.
+API_STATE_FILE=/data/api_state.json
 ```
 
 ## Getting Started
 
-1. Copy the example state file:
+1. Copy `.env.example` to `.env` and fill in your API keys (see below)
+
+2. Run the application:
 
    ```sh
-   cp api_state.example.json api_state.json
-   ```
-
-2. Set up environment variables (see above)
-
-3. Run the application:
-
-   ```sh
-   # Using Go
+   # Using Go (writes state to ./api_state.json in the current directory)
    go run .
-   
-   # Or using Docker Compose
-   docker compose up
+
+   # Using Podman (state persists to ./data/api_state.json via the mount)
+   podman run --userns=keep-id --user "$(id -u):$(id -g)" --env-file .env \
+     -p 8080:8080 -v ./data:/data localhost/exchange-go-notifier:dev
+
+   # Or using Podman Compose (reads keys from .env)
+   podman-compose up
    ```
+
+   In a container the app writes its state to `/data/api_state.json`. Create the
+   `./data` dir first (`mkdir -p data` — Podman doesn't auto-create bind mounts);
+   the app creates the state file on first request. To seed zero counters instead:
+   `cp api_state.example.json data/api_state.json`
 
 The server will start on `http://localhost:8080`
 
@@ -100,12 +111,17 @@ http ":8080/exchange-rates" api==er-a base==USD
 go test -v
 ```
 
-### Building with Docker
+### Building with Podman
 
 ```sh
-docker build -t exchange-go-notifier .
-docker run -p 8080:8080 --env-file .env exchange-go-notifier
+podman build -t localhost/exchange-go-notifier:dev .
+mkdir -p data
+podman run --userns=keep-id --user "$(id -u):$(id -g)" --env-file .env \
+  -p 8080:8080 -v ./data:/data localhost/exchange-go-notifier:dev
 ```
+
+`--user` keeps the state file owned by you; see [PODMAN_USAGE.md](PODMAN_USAGE.md)
+for the full setup, including running without `--user`.
 
 ## License
 
