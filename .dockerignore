@@ -12,5 +12,7 @@
 .idea/
 *.swp
 
-# Ignore state files (should be mounted at runtime)
+# Ignore state/env (provided at runtime via volume mount / --env-file)
 api_state.json
+data/
+.env
