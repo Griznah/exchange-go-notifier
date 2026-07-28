@@ -28,3 +28,6 @@ go.work.sum
 # State file + container data dir (api_state.json embeds the API keys at runtime)
 api_state.json
 data/
+
+# Compiled binary
+/exchange-go-notifier

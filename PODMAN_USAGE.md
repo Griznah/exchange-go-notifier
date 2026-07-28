@@ -20,8 +20,11 @@ cp .env.example .env
 # edit .env and fill in EXCHANGERATE_API_KEY / OPENEXCHANGERATES_APP_ID
 ```
 
-`.env` is plain `KEY=VALUE` (no `export`) so `--env-file` can read it. It also sets
-`API_STATE_FILE=/data/api_state.json`, pointing the app at the mounted `./data` dir.
+`.env` is plain `KEY=VALUE` (no `export`) so `--env-file` can read it. It holds
+only your API keys — `API_STATE_FILE` is **not** stored here, because this file is
+also loaded for local `go run .` (where it would override the working-dir default).
+Pass it container-side via `-e API_STATE_FILE=/data/api_state.json` (or set it in
+`compose.yaml`), pointing the app at the mounted `./data` dir.
 
 ## Build the image
 
@@ -38,18 +41,24 @@ mounts:
 
 ```sh
 mkdir -p data
-podman run --userns=keep-id --user "$(id -u):$(id -g)" --env-file .env \
-  -p 8080:8080 -v ./data:/data localhost/exchange-go-notifier:dev
+podman run --userns=keep-id --user "$(id -u):$(id -g)" \
+  -e API_STATE_FILE=/data/api_state.json --env-file .env \
+  -p 8080:8080 -v ./data:/data:Z localhost/exchange-go-notifier:dev
 ```
+
+- `-e API_STATE_FILE=/data/api_state.json` points the app at the mounted `./data`
+  dir (the container WORKDIR is `/app`, so without this the state file would land
+  inside the ephemeral container filesystem).
 
 - `--userns=keep-id` maps your host user into the container so it can write to the
   bind-mounted `./data` dir (rootless Podman otherwise can't write host-owned dirs).
 - `--user "$(id -u):$(id -g)"` runs the process as your own UID/GID, so the state
   file is **owned by you** (not a mapped subuid) and stays directly editable. It's
   still non-root inside the container.
-- `-v ./data:/data` exposes the host `./data` dir as `/data`; the app writes its
+- `-v ./data:/data:Z` exposes the host `./data` dir as `/data`; the app writes its
   state to `/data/api_state.json` (`./data/api_state.json` on the host) and creates
-  that file on the first successful request.
+  that file on the first successful request. The `:Z` suffix relabels the mount for
+  SELinux-enabled hosts (Fedora/RHEL); it's a no-op elsewhere.
 - API keys are injected from `.env` via `--env-file`.
 
 > Without `--user`, the app runs as the image's non-root `appuser`, which `keep-id`
@@ -63,6 +72,10 @@ To seed zero counters instead of letting the app create the file:
 cp api_state.example.json data/api_state.json
 ```
 
+This targets the default path (`API_STATE_FILE=/data/api_state.json` →
+`./data/api_state.json` on the host). If you customized `API_STATE_FILE`, copy to
+the host path that maps to it instead.
+
 ## Using an env file you already have
 
 If your keys live in a shell file that uses `export` (e.g.
@@ -71,7 +84,8 @@ pass the vars through instead:
 
 ```sh
 source ~/vars/exchange-go-notifier.env
-podman run --userns=keep-id --user "$(id -u):$(id -g)" -p 8080:8080 -v ./data:/data \
+mkdir -p data
+podman run --userns=keep-id --user "$(id -u):$(id -g)" -p 8080:8080 -v ./data:/data:Z \
   -e EXCHANGERATE_API_KEY -e OPENEXCHANGERATES_APP_ID \
   -e API_STATE_FILE=/data/api_state.json \
   localhost/exchange-go-notifier:dev
@@ -80,8 +94,13 @@ podman run --userns=keep-id --user "$(id -u):$(id -g)" -p 8080:8080 -v ./data:/d
 ## Using Podman Compose
 
 ```sh
-podman-compose up      # or: podman compose up
+mkdir -p data
+UID=$(id -u) GID=$(id -g) podman-compose up      # or: podman compose up
 ```
 
-`compose.yaml` mounts `./data:/data`, sets `API_STATE_FILE=/data/api_state.json`,
-and uses `userns_mode: "keep-id"`. Keys are read from `.env` automatically.
+`compose.yaml` mounts `./data:/data:Z`, sets `API_STATE_FILE=/data/api_state.json`
+in the service environment, and uses `userns_mode: "keep-id"` with
+`x-podman: in_pod: false` (keep-id needs a standalone container, not a pod). For
+the state file to be owned by you, export `UID`/`GID` as shown — bash doesn't
+export them by default, so interpolation otherwise falls back to 1000:1000. Keys
+are read from `.env` automatically.

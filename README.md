@@ -31,9 +31,10 @@ EXCHANGERATE_API_KEY=your_api_key_here
 # Open Exchange Rates (oer) - Get your key from https://openexchangerates.org/
 OPENEXCHANGERATES_APP_ID=your_app_id_here
 
-# State file path inside the container (with the ./data:/data mount).
-# Optional for local `go run .`; defaults to api_state.json in the working dir.
-API_STATE_FILE=/data/api_state.json
+# API_STATE_FILE is container-only (it points the app at the mounted /data dir).
+# Don't put it in .env — this file is also loaded for local `go run .`, where it
+# would override the working-dir default (api_state.json). Pass it via
+# `-e API_STATE_FILE=/data/api_state.json`, or set it in compose.yaml.
 ```
 
 ## Getting Started
@@ -47,11 +48,13 @@ API_STATE_FILE=/data/api_state.json
    go run .
 
    # Using Podman (state persists to ./data/api_state.json via the mount)
-   podman run --userns=keep-id --user "$(id -u):$(id -g)" --env-file .env \
-     -p 8080:8080 -v ./data:/data localhost/exchange-go-notifier:dev
+   podman run --userns=keep-id --user "$(id -u):$(id -g)" \
+     -e API_STATE_FILE=/data/api_state.json --env-file .env \
+     -p 8080:8080 -v ./data:/data:Z localhost/exchange-go-notifier:dev
 
    # Or using Podman Compose (reads keys from .env)
-   podman-compose up
+   mkdir -p data
+   UID=$(id -u) GID=$(id -g) podman-compose up
    ```
 
    In a container the app writes its state to `/data/api_state.json`. Create the
@@ -116,8 +119,9 @@ go test -v
 ```sh
 podman build -t localhost/exchange-go-notifier:dev .
 mkdir -p data
-podman run --userns=keep-id --user "$(id -u):$(id -g)" --env-file .env \
-  -p 8080:8080 -v ./data:/data localhost/exchange-go-notifier:dev
+podman run --userns=keep-id --user "$(id -u):$(id -g)" \
+  -e API_STATE_FILE=/data/api_state.json --env-file .env \
+  -p 8080:8080 -v ./data:/data:Z localhost/exchange-go-notifier:dev
 ```
 
 `--user` keeps the state file owned by you; see [PODMAN_USAGE.md](PODMAN_USAGE.md)

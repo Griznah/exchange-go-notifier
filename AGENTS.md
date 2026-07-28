@@ -4,7 +4,8 @@ This guide is for agentic coding agents working in the exchange-go-notifier repo
 
 ## Build, Lint, and Test Commands
 - **Run app:** `go run .`
-- **Run with Podman:** `podman run --userns=keep-id --user "$(id -u):$(id -g)" --env-file .env -p 8080:8080 -v ./data:/data localhost/exchange-go-notifier:dev`
+- **Prepare state dir (once):** `mkdir -p data`
+- **Run with Podman:** `podman run --userns=keep-id --user "$(id -u):$(id -g)" -e API_STATE_FILE=/data/api_state.json --env-file .env -p 8080:8080 -v ./data:/data:Z localhost/exchange-go-notifier:dev`
 - **Run with Podman Compose:** `podman-compose up`
 - **Build Podman image:** `podman build -t localhost/exchange-go-notifier:dev .`
 - **Run all tests:** `go test -v`

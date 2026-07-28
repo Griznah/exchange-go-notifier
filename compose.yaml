@@ -4,6 +4,11 @@ services:
   exchange-go-notifier:
     build: .
     image: localhost/exchange-go-notifier:dev
+    # Run as a standalone container, not inside podman-compose's auto-created
+    # pod: --userns and --pod are mutually exclusive in Podman, so keep-id only
+    # takes effect outside a pod. (x-podman is ignored by other compose providers.)
+    x-podman:
+      in_pod: false
     ports:
       - "8080:8080"
     environment:
@@ -11,9 +16,11 @@ services:
       - OPENEXCHANGERATES_APP_ID=${OPENEXCHANGERATES_APP_ID}
       - API_STATE_FILE=/data/api_state.json
     volumes:
-      - ./data:/data
-    # Run as your host UID/GID so the state file is owned by you (not a subuid).
-    # Defaults to 1000:1000; set your UID:GID explicitly here if it differs.
+      # :Z relabels the mount for SELinux hosts (no-op on non-SELinux systems).
+      - ./data:/data:Z
     userns_mode: "keep-id"
+    # Run as your host UID/GID so the state file is owned by you (not a subuid).
+    # bash doesn't export UID/GID, so interpolation falls back to 1000:1000.
+    # Export them or run: UID=$(id -u) GID=$(id -g) podman-compose up
     user: "${UID:-1000}:${GID:-1000}"
     restart: unless-stopped

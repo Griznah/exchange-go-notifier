@@ -12,6 +12,8 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// API describes a single exchange-rate provider: its endpoint, credentials, and
+// the per-provider monthly request counter used for rate limiting.
 type API struct {
 	Name          string
 	BaseURL       string
@@ -22,10 +24,15 @@ type API struct {
 	LastReset     time.Time
 }
 
+// ExchangeRateResponse is the normalized, provider-agnostic rate payload returned
+// by the /exchange-rates endpoint: a currency code mapped to its rate.
 type ExchangeRateResponse struct {
 	Rates map[string]float64 `json:"rates"`
 }
 
+// APIs is the registry of supported exchange-rate providers and their runtime
+// state (counters, reset times). It is mutated in place and persisted to the
+// state file between restarts.
 var APIs = []API{
 	{
 		Name:          "er-a",
