@@ -219,6 +219,15 @@ func isValidCurrencyCode(code string) bool {
 	return true
 }
 
+// healthHandler reports liveness for the container HEALTHCHECK. It returns 200
+// once the server is serving requests; no dependencies are probed, so it tests
+// liveness rather than the upstream providers' availability.
+func healthHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"status":"ok"}`))
+}
+
 // Add logging for incoming requests
 func exchangeRateHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("Incoming request: %s %s\n", r.Method, r.URL.String())
@@ -298,6 +307,7 @@ func main() {
 	loadAPIState()
 
 	http.HandleFunc("/exchange-rates", exchangeRateHandler)
+	http.HandleFunc("/health", healthHandler)
 	fmt.Println("Server is running on port 8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		fmt.Printf("Server failed: %v\n", err)
