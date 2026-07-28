@@ -95,7 +95,9 @@ podman run --userns=keep-id --user "$(id -u):$(id -g)" -p 8080:8080 -v ./data:/d
 
 ```sh
 mkdir -p data
-env UID=$(id -u) GID=$(id -g) podman-compose up      # or: podman compose up
+env UID=$(id -u) GID=$(id -g) podman-compose up
+# equivalent alternative:
+#   env UID=$(id -u) GID=$(id -g) podman compose up
 ```
 
 `compose.yaml` mounts `./data:/data:Z`, sets `API_STATE_FILE=/data/api_state.json`
