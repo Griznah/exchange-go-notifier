@@ -21,6 +21,6 @@ services:
     userns_mode: "keep-id"
     # Run as your host UID/GID so the state file is owned by you (not a subuid).
     # bash doesn't export UID/GID, so interpolation falls back to 1000:1000.
-    # Export them or run: UID=$(id -u) GID=$(id -g) podman-compose up
+    # Export them or run: env UID=$(id -u) GID=$(id -g) podman-compose up
     user: "${UID:-1000}:${GID:-1000}"
     restart: unless-stopped

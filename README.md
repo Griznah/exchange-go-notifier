@@ -54,7 +54,7 @@ OPENEXCHANGERATES_APP_ID=your_app_id_here
 
    # Or using Podman Compose (reads keys from .env)
    mkdir -p data
-   UID=$(id -u) GID=$(id -g) podman-compose up
+   env UID=$(id -u) GID=$(id -g) podman-compose up
    ```
 
    In a container the app writes its state to `/data/api_state.json`. Create the

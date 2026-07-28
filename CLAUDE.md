@@ -11,7 +11,7 @@ go run .
 
 # With Podman Compose (mkdir first; export UID/GID so the state file is host-owned)
 mkdir -p data
-UID=$(id -u) GID=$(id -g) podman-compose up
+env UID=$(id -u) GID=$(id -g) podman-compose up
 
 # Manual Podman build and run (--user keeps state owned by you; aligned with absa-ac)
 podman build -t localhost/exchange-go-notifier:dev .
