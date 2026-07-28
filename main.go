@@ -12,6 +12,8 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// API describes a single exchange-rate provider: its endpoint, credentials, and
+// the per-provider monthly request counter used for rate limiting.
 type API struct {
 	Name          string
 	BaseURL       string
@@ -22,10 +24,15 @@ type API struct {
 	LastReset     time.Time
 }
 
+// ExchangeRateResponse is the normalized, provider-agnostic rate payload returned
+// by the /exchange-rates endpoint: a currency code mapped to its rate.
 type ExchangeRateResponse struct {
 	Rates map[string]float64 `json:"rates"`
 }
 
+// APIs is the registry of supported exchange-rate providers and their runtime
+// state (counters, reset times). It is mutated in place and persisted to the
+// state file between restarts.
 var APIs = []API{
 	{
 		Name:          "er-a",
@@ -45,7 +52,11 @@ var APIs = []API{
 
 var apiStateMutex sync.Mutex
 
-const apiStateFile = "api_state.json"
+// apiStateFile is the path to the persisted request-counters file. Override it
+// with the API_STATE_FILE env var (e.g. /data/api_state.json in containers that
+// mount ./data at /data); defaults to api_state.json in the working directory so
+// local `go run .` keeps working unchanged.
+var apiStateFile = "api_state.json"
 
 // Load API state from file
 func loadAPIState() {
@@ -271,6 +282,13 @@ func ensureEnvVars() {
 
 func main() {
 	ensureEnvVars()
+
+	// API_STATE_FILE may be set in the real env (-e/--env-file) or in .env
+	// (loaded above by ensureEnvVars); pick it up before reading/writing state.
+	if p := os.Getenv("API_STATE_FILE"); p != "" {
+		apiStateFile = p
+	}
+
 	fmt.Println("Available APIs:")
 	for _, api := range APIs {
 		fmt.Printf("- %s (Base URL: %s, Limit: %d requests per %v)\n", api.Name, api.BaseURL, api.RequestLimit, api.ResetInterval)

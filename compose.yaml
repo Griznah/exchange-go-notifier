@@ -1,0 +1,26 @@
+# Compose file for use with `podman-compose` (or `podman compose` + a provider).
+# Copy .env.example to .env and fill in your API keys first.
+services:
+  exchange-go-notifier:
+    build: .
+    image: localhost/exchange-go-notifier:dev
+    # Run as a standalone container, not inside podman-compose's auto-created
+    # pod: --userns and --pod are mutually exclusive in Podman, so keep-id only
+    # takes effect outside a pod. (x-podman is ignored by other compose providers.)
+    x-podman:
+      in_pod: false
+    ports:
+      - "8080:8080"
+    environment:
+      - EXCHANGERATE_API_KEY=${EXCHANGERATE_API_KEY}
+      - OPENEXCHANGERATES_APP_ID=${OPENEXCHANGERATES_APP_ID}
+      - API_STATE_FILE=/data/api_state.json
+    volumes:
+      # :Z relabels the mount for SELinux hosts (no-op on non-SELinux systems).
+      - ./data:/data:Z
+    userns_mode: "keep-id"
+    # Run as your host UID/GID so the state file is owned by you (not a subuid).
+    # bash doesn't export UID/GID, so interpolation falls back to 1000:1000.
+    # Export them or run: env UID=$(id -u) GID=$(id -g) podman-compose up
+    user: "${UID:-1000}:${GID:-1000}"
+    restart: unless-stopped

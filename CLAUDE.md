@@ -9,12 +9,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Local development (requires api_state.json and .env files)
 go run .
 
-# With Docker Compose
-docker compose up
+# With Podman Compose (mkdir first; export UID/GID so the state file is host-owned)
+mkdir -p data
+env UID=$(id -u) GID=$(id -g) podman-compose up
 
-# Manual Docker build and run
-docker build -t exchange-go-notifier .
-docker run -p 8080:8080 --env-file .env -v $(pwd)/api_state.json:/app/api_state.json exchange-go-notifier
+# Manual Podman build and run (--user keeps state owned by you; aligned with absa-ac)
+podman build -t localhost/exchange-go-notifier:dev .
+mkdir -p data
+podman run --rm --userns=keep-id --user "$(id -u):$(id -g)" \
+  -e API_STATE_FILE=/data/api_state.json --env-file .env \
+  -p 8080:8080 -v ./data:/data:Z localhost/exchange-go-notifier:dev
 ```
 
 ### Testing
