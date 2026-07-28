@@ -225,7 +225,9 @@ func isValidCurrencyCode(code string) bool {
 func healthHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"status":"ok"}`))
+	if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
+		fmt.Printf("[DEBUG] health response write failed: %v\n", err)
+	}
 }
 
 // Add logging for incoming requests
