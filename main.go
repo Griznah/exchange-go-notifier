@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"sync"
@@ -102,11 +103,10 @@ func saveAPIState() {
 
 func loadAPIKeys() {
 	for i := range APIs {
-		if APIs[i].Name == "er-a" {
-			APIs[i].APIKey = os.Getenv("EXCHANGERATE_API_KEY")
-		} else if APIs[i].Name == "oer" {
-			APIs[i].APIKey = os.Getenv("OPENEXCHANGERATES_APP_ID")
+		if APIs[i].EnvVar == "" {
+			log.Fatalf("API %s has no EnvVar configured", APIs[i].Name)
 		}
+		APIs[i].APIKey = os.Getenv(APIs[i].EnvVar)
 	}
 }
 
