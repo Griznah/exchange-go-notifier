@@ -60,9 +60,6 @@ func TestAPIsInitialization(t *testing.T) {
 				if api.RequestLimit != test.expectedLimit {
 					t.Errorf("Expected RequestLimit for %s to be %d, got %d", test.name, test.expectedLimit, api.RequestLimit)
 				}
-				if api.ResetInterval != 30*24*time.Hour {
-					t.Errorf("Expected ResetInterval for %s to be 30 days, got %v", test.name, api.ResetInterval)
-				}
 			}
 		}
 		if !found {

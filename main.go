@@ -8,20 +8,17 @@ import (
 	"os"
 	"sync"
 	"time"
-
-	"github.com/joho/godotenv"
 )
 
 // API describes a single exchange-rate provider: its endpoint, credentials, and
 // the per-provider monthly request counter used for rate limiting.
 type API struct {
-	Name          string
-	BaseURL       string
-	APIKey        string
-	RequestCount  int
-	RequestLimit  int
-	ResetInterval time.Duration
-	LastReset     time.Time
+	Name         string
+	BaseURL      string
+	APIKey       string
+	RequestCount int
+	RequestLimit int
+	LastReset    time.Time
 }
 
 // ExchangeRateResponse is the normalized, provider-agnostic rate payload returned
@@ -35,18 +32,16 @@ type ExchangeRateResponse struct {
 // state file between restarts.
 var APIs = []API{
 	{
-		Name:          "er-a",
-		BaseURL:       "https://v6.exchangerate-api.com/v6/",
-		RequestLimit:  1500,                // max 1500 requests per month
-		ResetInterval: 30 * 24 * time.Hour, // monthly reset
-		LastReset:     time.Now(),
+		Name:         "er-a",
+		BaseURL:      "https://v6.exchangerate-api.com/v6/",
+		RequestLimit: 1500, // max 1500 requests per month
+		LastReset:    time.Now(),
 	},
 	{
-		Name:          "oer",
-		BaseURL:       "https://openexchangerates.org/api/",
-		RequestLimit:  1000,                // max 1000 requests per month
-		ResetInterval: 30 * 24 * time.Hour, // monthly reset
-		LastReset:     time.Now(),
+		Name:         "oer",
+		BaseURL:      "https://openexchangerates.org/api/",
+		RequestLimit: 1000, // max 1000 requests per month
+		LastReset:    time.Now(),
 	},
 }
 
@@ -105,7 +100,6 @@ func saveAPIState() {
 	fmt.Println("[DEBUG] Saved API state to file.")
 }
 
-// Modify the loadAPIKeys function to store API keys separately
 func loadAPIKeys() {
 	for i := range APIs {
 		if APIs[i].Name == "er-a" {
@@ -116,8 +110,8 @@ func loadAPIKeys() {
 	}
 }
 
-// Update the trackRequest function to handle request limit correctly
-// Only checks/reset, does not increment or save
+// trackRequest resets the counter after a month boundary and rejects requests
+// once the monthly limit is hit. It does not increment or save.
 func trackRequest(api *API) error {
 	currentTime := time.Now()
 	firstOfMonth := time.Date(currentTime.Year(), currentTime.Month(), 1, 0, 0, 0, 0, currentTime.Location())
@@ -137,7 +131,6 @@ func trackRequest(api *API) error {
 	return nil
 }
 
-// Update the fetchExchangeRates function
 func fetchExchangeRates(api *API, baseCurrency string) (*ExchangeRateResponse, error) {
 	if err := trackRequest(api); err != nil {
 		fmt.Printf("[DEBUG] trackRequest error: %v\n", err)
@@ -263,12 +256,6 @@ func exchangeRateHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if selectedAPI == nil {
-		http.Error(w, "API not found", http.StatusNotFound)
-		fmt.Printf("[DEBUG] API not found: %s\n", apiName)
-		return
-	}
-
 	rates, err := fetchExchangeRates(selectedAPI, baseCurrency)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -284,25 +271,15 @@ func exchangeRateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func ensureEnvVars() {
-	// Try to load .env file if required env vars are missing
-	if os.Getenv("EXCHANGERATE_API_KEY") == "" || os.Getenv("OPENEXCHANGERATES_APP_ID") == "" {
-		_ = godotenv.Load(".env")
-	}
-}
-
 func main() {
-	ensureEnvVars()
-
-	// API_STATE_FILE may be set in the real env (-e/--env-file) or in .env
-	// (loaded above by ensureEnvVars); pick it up before reading/writing state.
+	// API_STATE_FILE is passed via -e/--env-file or compose (see .env.example).
 	if p := os.Getenv("API_STATE_FILE"); p != "" {
 		apiStateFile = p
 	}
 
 	fmt.Println("Available APIs:")
 	for _, api := range APIs {
-		fmt.Printf("- %s (Base URL: %s, Limit: %d requests per %v)\n", api.Name, api.BaseURL, api.RequestLimit, api.ResetInterval)
+		fmt.Printf("- %s (Base URL: %s, Limit: %d requests per month)\n", api.Name, api.BaseURL, api.RequestLimit)
 	}
 
 	loadAPIKeys()

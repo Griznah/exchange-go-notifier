@@ -32,8 +32,9 @@ EXCHANGERATE_API_KEY=your_api_key_here
 OPENEXCHANGERATES_APP_ID=your_app_id_here
 
 # API_STATE_FILE is container-only (it points the app at the mounted /data dir).
-# Don't put it in .env — this file is also loaded for local `go run .`, where it
-# would override the working-dir default (api_state.json). Pass it via
+# Don't put it in .env — local `go run .` never reads this file (export vars
+# with `set -a; . ./.env; set +a`) and would otherwise override the
+# working-dir default (api_state.json). Pass it via
 # `-e API_STATE_FILE=/data/api_state.json`, or set it in compose.yaml.
 ```
 
@@ -45,6 +46,7 @@ OPENEXCHANGERATES_APP_ID=your_app_id_here
 
    ```sh
    # Using Go (writes state to ./api_state.json in the current directory)
+   # Export your keys first:  set -a; . ./.env; set +a
    go run .
 
    # Using Podman (state persists to ./data/api_state.json via the mount)
