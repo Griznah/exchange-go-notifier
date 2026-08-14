@@ -1,44 +1,33 @@
 package main
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
 
-func loadAPIKeysForTest(apis []API) []API {
-	for i := range apis {
-		if apis[i].Name == "er-a" {
-			apis[i].APIKey = os.Getenv("EXCHANGERATE_API_KEY")
-		} else if apis[i].Name == "oer" {
-			apis[i].APIKey = os.Getenv("OPENEXCHANGERATES_APP_ID")
-		}
-	}
-	return apis
-}
-
 func TestLoadAPIKeys(t *testing.T) {
-	os.Setenv("EXCHANGERATE_API_KEY", "test_exchangerate_api_key")
-	os.Setenv("OPENEXCHANGERATES_APP_ID", "test_openexchangerates_app_id")
-	defer os.Unsetenv("EXCHANGERATE_API_KEY")
-	defer os.Unsetenv("OPENEXCHANGERATES_APP_ID")
+	t.Setenv("EXCHANGERATE_API_KEY", "test_exchangerate_api_key")
+	t.Setenv("OPENEXCHANGERATES_APP_ID", "test_openexchangerates_app_id")
 
-	testAPIs := []API{
-		{Name: "er-a"},
-		{Name: "oer"},
-	}
-	testAPIs = loadAPIKeysForTest(testAPIs)
+	originalAPIs := APIs
+	defer func() { APIs = originalAPIs }()
+	loadAPIKeys()
 
-	for _, api := range testAPIs {
-		if api.Name == "er-a" && api.APIKey != "test_exchangerate_api_key" {
-			t.Errorf("Expected API key for er-a to be 'test_exchangerate_api_key', got '%s'", api.APIKey)
-		}
-		if api.Name == "oer" && api.APIKey != "test_openexchangerates_app_id" {
-			t.Errorf("Expected API key for oer to be 'test_openexchangerates_app_id', got '%s'", api.APIKey)
+	for _, api := range APIs {
+		switch api.Name {
+		case "er-a":
+			if api.APIKey != "test_exchangerate_api_key" {
+				t.Errorf("Expected API key for er-a to be 'test_exchangerate_api_key', got '%s'", api.APIKey)
+			}
+		case "oer":
+			if api.APIKey != "test_openexchangerates_app_id" {
+				t.Errorf("Expected API key for oer to be 'test_openexchangerates_app_id', got '%s'", api.APIKey)
+			}
 		}
 	}
 }
@@ -120,53 +109,18 @@ func TestTrackRequestAndStatePersistence(t *testing.T) {
 }
 
 func TestSaveAndLoadAPIState(t *testing.T) {
-	api := &API{
-		Name:         "persistapi",
-		RequestLimit: 10,
-		RequestCount: 5,
-		LastReset:    time.Now(),
-	}
-	// Use a temp file for state
-	tmpFile, err := os.CreateTemp("", "api_state_test_*.json")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	defer os.Remove(tmpFile.Name())
+	origFile, origAPIs := apiStateFile, APIs
+	defer func() { apiStateFile, APIs = origFile, origAPIs }()
+	apiStateFile = filepath.Join(t.TempDir(), "api_state.json")
+	APIs = []API{{Name: "persistapi", RequestLimit: 10, RequestCount: 5, LastReset: time.Now()}}
 
-	// Patch saveAPIState and loadAPIState for this test
-	saveAPIStateTest := func(apis []API, file string) {
-		data, err := json.MarshalIndent(apis, "", "  ")
-		if err != nil {
-			t.Fatalf("Could not marshal API state: %v", err)
-		}
-		if err := os.WriteFile(file, data, 0644); err != nil {
-			t.Fatalf("Could not write %s: %v", file, err)
-		}
-	}
-	loadAPIStateTest := func(apis []API, file string) []API {
-		f, err := os.Open(file)
-		if err != nil {
-			t.Fatalf("Could not read %s: %v", file, err)
-		}
-		defer f.Close()
-		data, err := io.ReadAll(f)
-		if err != nil {
-			t.Fatalf("Could not read %s: %v", file, err)
-		}
-		var loadedAPIs []API
-		if err := json.Unmarshal(data, &loadedAPIs); err != nil {
-			t.Fatalf("Could not unmarshal %s: %v", file, err)
-		}
-		return loadedAPIs
-	}
+	saveAPIState()
 
-	apis := []API{*api}
-	saveAPIStateTest(apis, tmpFile.Name())
-	// Zero out and reload
-	apis[0].RequestCount = 0
-	loaded := loadAPIStateTest(apis, tmpFile.Name())
-	if loaded[0].RequestCount != 5 {
-		t.Errorf("Expected RequestCount to be 5 after reload, got %d", loaded[0].RequestCount)
+	APIs[0].RequestCount = 0
+	loadAPIState()
+
+	if APIs[0].RequestCount != 5 {
+		t.Errorf("Expected RequestCount to be 5 after reload, got %d", APIs[0].RequestCount)
 	}
 }
 
@@ -200,6 +154,20 @@ func TestIsValidCurrencyCode(t *testing.T) {
 
 // --- HTTP handler validation tests ---
 func TestExchangeRateHandler_InputValidation(t *testing.T) {
+	// Route er-a at a mock provider so the happy-path case stays offline and
+	// deterministic (403 maps to the "exceeded its request limit" error).
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer mock.Close()
+	origAPIs := APIs
+	defer func() { APIs = origAPIs }()
+	for i := range APIs {
+		if APIs[i].Name == "er-a" {
+			APIs[i].BaseURL = mock.URL + "/"
+		}
+	}
+
 	ts := httptest.NewServer(http.HandlerFunc(exchangeRateHandler))
 	defer ts.Close()
 
@@ -213,7 +181,7 @@ func TestExchangeRateHandler_InputValidation(t *testing.T) {
 		{"invalid api", "api=invalid", 400, "Invalid 'api' parameter"},
 		{"invalid base", "api=er-a&base=usd", 400, "Invalid 'base' parameter"},
 		{"invalid base 2", "api=er-a&base=USDE", 400, "Invalid 'base' parameter"},
-		{"valid api and base", "api=er-a&base=USD", 500, "API er-a has exceeded its request limit"}, // Will fail at fetch, but validation passes
+		{"valid api and base", "api=er-a&base=USD", 500, "API er-a has exceeded its request limit"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -226,16 +194,9 @@ func TestExchangeRateHandler_InputValidation(t *testing.T) {
 			if resp.StatusCode != tc.wantStatus {
 				t.Errorf("Expected status %d, got %d", tc.wantStatus, resp.StatusCode)
 			}
-			if tc.wantBody != "" && string(body) == "" {
-				t.Errorf("Expected body to contain '%s', got empty", tc.wantBody)
-			}
-			if tc.wantBody != "" && !contains(string(body), tc.wantBody) {
+			if tc.wantBody != "" && !strings.Contains(string(body), tc.wantBody) {
 				t.Errorf("Expected body to contain '%s', got '%s'", tc.wantBody, string(body))
 			}
 		})
 	}
-}
-
-func contains(s, substr string) bool {
-	return len(substr) == 0 || (len(s) > 0 && (s == substr || (len(s) > len(substr) && (contains(s[1:], substr) || contains(s[:len(s)-1], substr))))) || (len(s) >= len(substr) && s[:len(substr)] == substr)
 }
