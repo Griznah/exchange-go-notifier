@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"sync"
@@ -105,6 +106,9 @@ func saveAPIState() {
 
 func loadAPIKeys() {
 	for i := range APIs {
+		if APIs[i].EnvVar == "" {
+			log.Fatalf("API %s has no EnvVar configured", APIs[i].Name)
+		}
 		APIs[i].APIKey = os.Getenv(APIs[i].EnvVar)
 	}
 }
