@@ -16,6 +16,7 @@ type API struct {
 	Name         string
 	BaseURL      string
 	APIKey       string
+	EnvVar       string // environment variable the APIKey is loaded from
 	RequestCount int
 	RequestLimit int
 	LastReset    time.Time
@@ -34,12 +35,14 @@ var APIs = []API{
 	{
 		Name:         "er-a",
 		BaseURL:      "https://v6.exchangerate-api.com/v6/",
+		EnvVar:       "EXCHANGERATE_API_KEY",
 		RequestLimit: 1500, // max 1500 requests per month
 		LastReset:    time.Now(),
 	},
 	{
 		Name:         "oer",
 		BaseURL:      "https://openexchangerates.org/api/",
+		EnvVar:       "OPENEXCHANGERATES_APP_ID",
 		RequestLimit: 1000, // max 1000 requests per month
 		LastReset:    time.Now(),
 	},
@@ -102,11 +105,7 @@ func saveAPIState() {
 
 func loadAPIKeys() {
 	for i := range APIs {
-		if APIs[i].Name == "er-a" {
-			APIs[i].APIKey = os.Getenv("EXCHANGERATE_API_KEY")
-		} else if APIs[i].Name == "oer" {
-			APIs[i].APIKey = os.Getenv("OPENEXCHANGERATES_APP_ID")
-		}
+		APIs[i].APIKey = os.Getenv(APIs[i].EnvVar)
 	}
 }
 
