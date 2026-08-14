@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"sync"
 	"time"
@@ -17,6 +18,7 @@ type API struct {
 	Name         string
 	BaseURL      string
 	APIKey       string
+	EnvVar       string // environment variable the APIKey is loaded from
 	RequestCount int
 	RequestLimit int
 	LastReset    time.Time
@@ -35,12 +37,14 @@ var APIs = []API{
 	{
 		Name:         "er-a",
 		BaseURL:      "https://v6.exchangerate-api.com/v6/",
+		EnvVar:       "EXCHANGERATE_API_KEY",
 		RequestLimit: 1500, // max 1500 requests per month
 		LastReset:    time.Now(),
 	},
 	{
 		Name:         "oer",
 		BaseURL:      "https://openexchangerates.org/api/",
+		EnvVar:       "OPENEXCHANGERATES_APP_ID",
 		RequestLimit: 1000, // max 1000 requests per month
 		LastReset:    time.Now(),
 	},
@@ -137,16 +141,18 @@ func fetchExchangeRates(api *API, baseCurrency string) (*ExchangeRateResponse, e
 		return nil, err
 	}
 
-	// Construct the URL with proper query parameters
-	var url string
+	// Construct the URL with proper query parameters. PathEscape on the
+	// currency code keeps the URL well-formed even if upstream validation
+	// ever loosens (CodeQL go/request-forgery).
+	var reqURL string
 	if api.Name == "er-a" {
-		url = fmt.Sprintf("%s%s/latest/%s", api.BaseURL, api.APIKey, baseCurrency)
+		reqURL = fmt.Sprintf("%s%s/latest/%s", api.BaseURL, url.PathEscape(api.APIKey), url.PathEscape(baseCurrency))
 	} else if api.Name == "oer" {
-		url = fmt.Sprintf("%slatest.json?app_id=%s&base=%s", api.BaseURL, api.APIKey, baseCurrency)
+		reqURL = fmt.Sprintf("%slatest.json?app_id=%s&base=%s", api.BaseURL, url.QueryEscape(api.APIKey), url.QueryEscape(baseCurrency))
 	}
 
 	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(url)
+	resp, err := client.Get(reqURL)
 	if err != nil {
 		fmt.Printf("[DEBUG] HTTP GET error: %v\n", err)
 		return nil, fmt.Errorf("failed to fetch exchange rates: %v", err)
