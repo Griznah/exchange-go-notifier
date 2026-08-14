@@ -45,6 +45,7 @@ OPENEXCHANGERATES_APP_ID=your_app_id_here
 
    ```sh
    # Using Go (writes state to ./api_state.json in the current directory)
+   # Export your keys first:  set -a; . ./.env; set +a
    go run .
 
    # Using Podman (state persists to ./data/api_state.json via the mount)

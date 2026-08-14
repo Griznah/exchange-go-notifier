@@ -5,7 +5,9 @@ This guide is for agentic coding agents working in the exchange-go-notifier repo
 ## Commands
 
 ```bash
-# Run app locally (requires api_state.json and .env in repo root)
+# Run app locally (requires api_state.json in repo root and exported keys:
+#   set -a; . ./.env; set +a
+# )
 go run .
 
 # Run all tests

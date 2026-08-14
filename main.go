@@ -8,8 +8,6 @@ import (
 	"os"
 	"sync"
 	"time"
-
-	"github.com/joho/godotenv"
 )
 
 // API describes a single exchange-rate provider: its endpoint, credentials, and
@@ -284,18 +282,8 @@ func exchangeRateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func ensureEnvVars() {
-	// Try to load .env file if required env vars are missing
-	if os.Getenv("EXCHANGERATE_API_KEY") == "" || os.Getenv("OPENEXCHANGERATES_APP_ID") == "" {
-		_ = godotenv.Load(".env")
-	}
-}
-
 func main() {
-	ensureEnvVars()
-
-	// API_STATE_FILE may be set in the real env (-e/--env-file) or in .env
-	// (loaded above by ensureEnvVars); pick it up before reading/writing state.
+	// API_STATE_FILE is passed via -e/--env-file or compose (see .env.example).
 	if p := os.Getenv("API_STATE_FILE"); p != "" {
 		apiStateFile = p
 	}
