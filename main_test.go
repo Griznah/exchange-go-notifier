@@ -14,7 +14,9 @@ func TestLoadAPIKeys(t *testing.T) {
 	t.Setenv("EXCHANGERATE_API_KEY", "test_exchangerate_api_key")
 	t.Setenv("OPENEXCHANGERATES_APP_ID", "test_openexchangerates_app_id")
 
-	originalAPIs := APIs
+	// Deep copy: loadAPIKeys mutates elements in place, and restoring the slice
+	// header would leave the mutated values in the shared backing array.
+	originalAPIs := append([]API(nil), APIs...)
 	defer func() { APIs = originalAPIs }()
 	loadAPIKeys()
 
@@ -160,7 +162,9 @@ func TestExchangeRateHandler_InputValidation(t *testing.T) {
 		w.WriteHeader(http.StatusForbidden)
 	}))
 	defer mock.Close()
-	origAPIs := APIs
+	// Deep copy so the BaseURL mutations below don't leak into other tests via
+	// the shared backing array (slice-header restore alone doesn't undo them).
+	origAPIs := append([]API(nil), APIs...)
 	defer func() { APIs = origAPIs }()
 	for i := range APIs {
 		if APIs[i].Name == "er-a" {
